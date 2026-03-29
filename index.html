@@ -214,71 +214,58 @@
 
   #rotatePrompt {
     position: fixed;
-    inset: 0;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-16px);
     z-index: 500;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background:
-      radial-gradient(circle at top, rgba(232,150,90,0.18), transparent 38%),
-      rgba(10, 10, 10, 0.94);
+    width: min(92vw, 360px);
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
   }
 
   #rotatePrompt.is-visible {
-    display: flex;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 
   .rotate-card {
-    width: min(420px, 100%);
-    padding: 24px 20px;
-    border-radius: 24px;
-    background: rgba(24, 24, 24, 0.94);
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(24, 24, 24, 0.9);
     border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
-    text-align: center;
+    box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+    text-align: left;
     color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
   .rotate-icon {
-    font-size: 38px;
+    font-size: 24px;
     line-height: 1;
-    margin-bottom: 12px;
+    flex: 0 0 auto;
   }
 
-  .rotate-card h2 {
-    font-size: 22px;
-    margin-bottom: 8px;
+  .rotate-copy {
+    min-width: 0;
   }
 
-  .rotate-card p {
+  .rotate-copy strong {
+    display: block;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .rotate-copy span {
     color: rgba(255,255,255,0.72);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .rotate-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-top: 18px;
-  }
-
-  .rotate-btn {
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.08);
-    color: #fff;
-    border-radius: 999px;
-    padding: 10px 16px;
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .rotate-btn.primary {
-    background: #E8965A;
-    border-color: #E8965A;
-    color: #111;
-    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.4;
   }
 </style>
 </head>
@@ -288,11 +275,9 @@
 <div id="rotatePrompt" aria-live="polite">
   <div class="rotate-card">
     <div class="rotate-icon">↻</div>
-    <h2>Best In Landscape</h2>
-    <p>This presentation is designed for a wide screen. Rotate your phone for the best view.</p>
-    <div class="rotate-actions">
-      <button class="rotate-btn primary" id="rotateAction" type="button">Try Landscape</button>
-      <button class="rotate-btn" id="rotateDismiss" type="button">Continue Anyway</button>
+    <div class="rotate-copy">
+      <strong>Best In Landscape</strong>
+      <span>Rotate your phone for the best view.</span>
     </div>
   </div>
 </div>
@@ -541,10 +526,7 @@
   var ctr = document.getElementById('ctr');
   var zp = document.getElementById('zp');
   var zn = document.getElementById('zn');
-  var deck = document.getElementById('deck');
   var rotatePrompt = document.getElementById('rotatePrompt');
-  var rotateAction = document.getElementById('rotateAction');
-  var rotateDismiss = document.getElementById('rotateDismiss');
   var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   var prefersReducedData = !!(connection && connection.saveData);
   var slowNetwork = !!(connection && /(?:^|slow-)?2g|3g/.test(connection.effectiveType || ''));
@@ -552,7 +534,7 @@
   var touchDevice = window.matchMedia('(pointer: coarse)').matches;
   var isConstrainedDevice = prefersReducedData || slowNetwork || (mobileViewport && touchDevice);
   var portraitMedia = window.matchMedia('(orientation: portrait)');
-  var rotationDismissed = false;
+  var rotateToastTimer = null;
 
   function loadSlideAssets(index) {
     var slide = slides[index];
@@ -611,30 +593,19 @@
   }
 
   function updateRotatePrompt() {
-    var shouldShow = isPortraitPhone() && !rotationDismissed;
-    rotatePrompt.classList.toggle('is-visible', shouldShow);
-  }
-
-  function tryLandscapeLock() {
-    var orientationApi = screen.orientation && screen.orientation.lock;
-    var fullscreenApi = deck.requestFullscreen || deck.webkitRequestFullscreen || deck.msRequestFullscreen;
-
-    if (fullscreenApi) {
-      try {
-        var full = fullscreenApi.call(deck);
-        if (full && full.catch) {
-          full.catch(function(){});
-        }
-      } catch (_) {}
+    if (rotateToastTimer) {
+      clearTimeout(rotateToastTimer);
+      rotateToastTimer = null;
     }
 
-    if (orientationApi) {
-      try {
-        var lock = screen.orientation.lock('landscape');
-        if (lock && lock.catch) {
-          lock.catch(function(){});
-        }
-      } catch (_) {}
+    if (isPortraitPhone()) {
+      rotatePrompt.classList.add('is-visible');
+      rotateToastTimer = setTimeout(function() {
+        rotatePrompt.classList.remove('is-visible');
+        rotateToastTimer = null;
+      }, 1000);
+    } else {
+      rotatePrompt.classList.remove('is-visible');
     }
   }
 
@@ -691,16 +662,6 @@
     var dx = tx - e.changedTouches[0].clientX;
     if (Math.abs(dx) > 40) { dx > 0 ? next() : prev(); }
   }, { passive: true });
-
-  rotateAction.addEventListener('click', function() {
-    rotationDismissed = false;
-    tryLandscapeLock();
-  });
-
-  rotateDismiss.addEventListener('click', function() {
-    rotationDismissed = true;
-    updateRotatePrompt();
-  });
 
   if (portraitMedia.addEventListener) {
     portraitMedia.addEventListener('change', updateRotatePrompt);

@@ -211,11 +211,91 @@
     cursor: e-resize;
     z-index: 200;
   }
+
+  #rotatePrompt {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+      radial-gradient(circle at top, rgba(232,150,90,0.18), transparent 38%),
+      rgba(10, 10, 10, 0.94);
+  }
+
+  #rotatePrompt.is-visible {
+    display: flex;
+  }
+
+  .rotate-card {
+    width: min(420px, 100%);
+    padding: 24px 20px;
+    border-radius: 24px;
+    background: rgba(24, 24, 24, 0.94);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    text-align: center;
+    color: #fff;
+  }
+
+  .rotate-icon {
+    font-size: 38px;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+
+  .rotate-card h2 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .rotate-card p {
+    color: rgba(255,255,255,0.72);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .rotate-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 18px;
+  }
+
+  .rotate-btn {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .rotate-btn.primary {
+    background: #E8965A;
+    border-color: #E8965A;
+    color: #111;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
 
 <div id="progress"></div>
+<div id="rotatePrompt" aria-live="polite">
+  <div class="rotate-card">
+    <div class="rotate-icon">↻</div>
+    <h2>Best In Landscape</h2>
+    <p>This presentation is designed for a wide screen. Rotate your phone for the best view.</p>
+    <div class="rotate-actions">
+      <button class="rotate-btn primary" id="rotateAction" type="button">Try Landscape</button>
+      <button class="rotate-btn" id="rotateDismiss" type="button">Continue Anyway</button>
+    </div>
+  </div>
+</div>
 <div id="deck">
 
   <!-- ─────────────────────────────────────────
@@ -461,12 +541,18 @@
   var ctr = document.getElementById('ctr');
   var zp = document.getElementById('zp');
   var zn = document.getElementById('zn');
+  var deck = document.getElementById('deck');
+  var rotatePrompt = document.getElementById('rotatePrompt');
+  var rotateAction = document.getElementById('rotateAction');
+  var rotateDismiss = document.getElementById('rotateDismiss');
   var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   var prefersReducedData = !!(connection && connection.saveData);
   var slowNetwork = !!(connection && /(?:^|slow-)?2g|3g/.test(connection.effectiveType || ''));
   var mobileViewport = window.matchMedia('(max-width: 900px)').matches;
   var touchDevice = window.matchMedia('(pointer: coarse)').matches;
   var isConstrainedDevice = prefersReducedData || slowNetwork || (mobileViewport && touchDevice);
+  var portraitMedia = window.matchMedia('(orientation: portrait)');
+  var rotationDismissed = false;
 
   function loadSlideAssets(index) {
     var slide = slides[index];
@@ -517,6 +603,38 @@
       window.requestIdleCallback(fn, { timeout: 1200 });
     } else {
       window.setTimeout(function() { fn(); }, 180);
+    }
+  }
+
+  function isPortraitPhone() {
+    return touchDevice && mobileViewport && portraitMedia.matches;
+  }
+
+  function updateRotatePrompt() {
+    var shouldShow = isPortraitPhone() && !rotationDismissed;
+    rotatePrompt.classList.toggle('is-visible', shouldShow);
+  }
+
+  function tryLandscapeLock() {
+    var orientationApi = screen.orientation && screen.orientation.lock;
+    var fullscreenApi = deck.requestFullscreen || deck.webkitRequestFullscreen || deck.msRequestFullscreen;
+
+    if (fullscreenApi) {
+      try {
+        var full = fullscreenApi.call(deck);
+        if (full && full.catch) {
+          full.catch(function(){});
+        }
+      } catch (_) {}
+    }
+
+    if (orientationApi) {
+      try {
+        var lock = screen.orientation.lock('landscape');
+        if (lock && lock.catch) {
+          lock.catch(function(){});
+        }
+      } catch (_) {}
     }
   }
 
@@ -574,10 +692,28 @@
     if (Math.abs(dx) > 40) { dx > 0 ? next() : prev(); }
   }, { passive: true });
 
+  rotateAction.addEventListener('click', function() {
+    rotationDismissed = false;
+    tryLandscapeLock();
+  });
+
+  rotateDismiss.addEventListener('click', function() {
+    rotationDismissed = true;
+    updateRotatePrompt();
+  });
+
+  if (portraitMedia.addEventListener) {
+    portraitMedia.addEventListener('change', updateRotatePrompt);
+  } else if (portraitMedia.addListener) {
+    portraitMedia.addListener(updateRotatePrompt);
+  }
+  window.addEventListener('resize', updateRotatePrompt);
+
   preloadNearbySlides(cur);
   if (!isConstrainedDevice) {
     warmRemainingSlides();
   }
+  updateRotatePrompt();
   updateInteractionLayer();
   syncSlideVideos();
 </script>

@@ -224,7 +224,7 @@
 
   <!-- 01  Cover -->
   <div class="slide active">
-    <img class="bg" src="images/slide-01.png" alt="Cover">
+    <img class="bg" src="images/slide-01.png" fetchpriority="high" decoding="sync" alt="Cover">
   </div>
 
   <!-- 02  Contents -->
@@ -461,6 +461,12 @@
   var ctr = document.getElementById('ctr');
   var zp = document.getElementById('zp');
   var zn = document.getElementById('zn');
+  var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  var prefersReducedData = !!(connection && connection.saveData);
+  var slowNetwork = !!(connection && /(?:^|slow-)?2g|3g/.test(connection.effectiveType || ''));
+  var mobileViewport = window.matchMedia('(max-width: 900px)').matches;
+  var touchDevice = window.matchMedia('(pointer: coarse)').matches;
+  var isConstrainedDevice = prefersReducedData || slowNetwork || (mobileViewport && touchDevice);
 
   function loadSlideAssets(index) {
     var slide = slides[index];
@@ -483,7 +489,8 @@
   }
 
   function preloadNearbySlides(index) {
-    [index, index + 1, index - 1].forEach(function(target) {
+    var targets = isConstrainedDevice ? [index, index + 1] : [index, index + 1, index - 1];
+    targets.forEach(function(target) {
       loadSlideAssets(((target % total) + total) % total);
     });
   }
@@ -568,7 +575,9 @@
   }, { passive: true });
 
   preloadNearbySlides(cur);
-  warmRemainingSlides();
+  if (!isConstrainedDevice) {
+    warmRemainingSlides();
+  }
   updateInteractionLayer();
   syncSlideVideos();
 </script>
